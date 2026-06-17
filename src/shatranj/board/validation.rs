@@ -1,6 +1,6 @@
 #![allow(unused_imports)]
 
-use crate::chess::{
+use crate::shatranj::{
     board::Board,
     piece::{Colour, Piece},
     types::{Rank, Square},
@@ -51,23 +51,12 @@ impl Board {
             );
         }
 
-        if !(self.ep_sq.is_none()
-            || (self.ep_sq.unwrap().rank() == Rank::Six && self.side == Colour::White)
-            || (self.ep_sq.unwrap().rank() == Rank::Three && self.side == Colour::Black))
-        {
-            bail!(
-                "en passant square is corrupt: expected square to be None or to be on ranks 6 or 3, got {} ({:?})",
-                self.ep_sq.unwrap(),
-                self.ep_sq.unwrap().rank()
-            );
-        }
-
-        // the fifty-move counter is allowed to be *exactly* 100, to allow a finished game to be
+        // the seventy-move counter is allowed to be *exactly* 140, to allow a finished game to be
         // created.
-        if self.fifty_move_counter > 100 {
+        if self.seventy_move_counter > 140 {
             bail!(
-                "fifty move counter is corrupt: expected 0-100, got {}",
-                self.fifty_move_counter
+                "seventy move counter is corrupt: expected 0-140, got {}",
+                self.seventy_move_counter
             );
         }
 

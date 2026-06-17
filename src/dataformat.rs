@@ -1,8 +1,8 @@
 use std::path::Path;
 
-use crate::chess::{
+use crate::shatranj::{
     board::{Board, GameOutcome},
-    chessmove::Move,
+    shatranjmove::Move,
 };
 
 use self::marlinformat::{util::I16Le, PackedBoard};
@@ -58,8 +58,6 @@ pub struct Filter {
     pub filter_tactical: bool,
     /// Filter out positions that are in check.
     pub filter_check: bool,
-    /// Filter out positions where a castling move was made.
-    pub filter_castling: bool,
     /// Filter out positions where eval diverges from WDL by more than this value.
     pub max_eval_incorrectness: u32,
     /// Whether to randomly skip positions.
@@ -96,7 +94,6 @@ impl Default for Filter {
             max_eval: 31339,
             filter_tactical: true,
             filter_check: true,
-            filter_castling: false,
             max_eval_incorrectness: u32::MAX,
             random_fen_skipping: false,
             random_fen_skip_probability: 0.0,
@@ -125,7 +122,6 @@ impl Filter {
         max_eval: u32::MAX,
         filter_tactical: false,
         filter_check: false,
-        filter_castling: false,
         max_eval_incorrectness: u32::MAX,
         random_fen_skipping: false,
         random_fen_skip_probability: 0.0,
@@ -196,9 +192,6 @@ impl Filter {
             return true;
         }
         if self.filter_check && board.in_check() {
-            return true;
-        }
-        if self.filter_castling && mv.is_castle() {
             return true;
         }
         if self.random_fen_skipping && rng.random_bool(self.random_fen_skip_probability) {
@@ -518,11 +511,11 @@ impl Game {
 #[allow(clippy::unwrap_used)]
 #[cfg(test)]
 mod tests {
-    use crate::chess::{piece::Colour};
+    use crate::shatranj::{piece::Colour};
 
     use super::*;
 
-    use crate::chess::types::Square;
+    use crate::shatranj::types::Square;
 
     #[test]
     #[ignore]
@@ -534,24 +527,24 @@ mod tests {
                 "pawn square-sets {msg}"
             );
             assert_eq!(
+                lhs.pieces.all_alfils(),
+                rhs.pieces.all_alfils(),
+                "alfil square-sets {msg}"
+            );
+            assert_eq!(
+                lhs.pieces.all_ferzes(),
+                rhs.pieces.all_ferzes(),
+                "ferz square-sets {msg}"
+            );
+            assert_eq!(
                 lhs.pieces.all_knights(),
                 rhs.pieces.all_knights(),
                 "knight square-sets {msg}"
             );
             assert_eq!(
-                lhs.pieces.all_bishops(),
-                rhs.pieces.all_bishops(),
-                "bishop square-sets {msg}"
-            );
-            assert_eq!(
                 lhs.pieces.all_rooks(),
                 rhs.pieces.all_rooks(),
                 "rook square-sets {msg}"
-            );
-            assert_eq!(
-                lhs.pieces.all_queens(),
-                rhs.pieces.all_queens(),
-                "queen square-sets {msg}"
             );
             assert_eq!(
                 lhs.pieces.all_kings(),
@@ -572,16 +565,10 @@ mod tests {
                 assert_eq!(lhs.piece_at(sq), rhs.piece_at(sq), "piece_at({sq:?}) {msg}");
             }
             assert_eq!(lhs.turn(), rhs.turn(), "side {msg}");
-            assert_eq!(lhs.ep_sq(), rhs.ep_sq(), "ep_sq {msg}");
             assert_eq!(
-                lhs.castling_rights(),
-                rhs.castling_rights(),
-                "castle_perm {msg}"
-            );
-            assert_eq!(
-                lhs.fifty_move_counter(),
-                rhs.fifty_move_counter(),
-                "fifty_move_counter {msg}"
+                lhs.seventy_move_counter(),
+                rhs.seventy_move_counter(),
+                "seventy_move_counter {msg}"
             );
             assert_eq!(lhs.ply(), rhs.ply(), "ply {msg}");
             assert_eq!(lhs.all_keys(), rhs.all_keys(), "key {msg}");
@@ -591,7 +578,7 @@ mod tests {
 
         // Grab `valid.sfens` from `cozy-chess` to run test
         for sfen in include_str!("valid.sfens").lines() {
-            let board = Board::from_fen(sfen, true).unwrap();
+            let board = Board::from_fen(sfen).unwrap();
             let packed = marlinformat::PackedBoard::pack(&board, 0, 0, 0);
             let (unpacked, _, _, _) = packed.unpack();
             check_eq(&board, &unpacked, sfen);
@@ -601,8 +588,8 @@ mod tests {
     #[test]
     fn game_roundtrip() {
         let mut game = Game::new(&Board::default());
-        game.add_move(Move::new(Square::E2, Square::E4), 0);
-        game.add_move(Move::new(Square::E7, Square::E5), -314);
+        game.add_move(Move::new(Square::E2, Square::E3), 0);
+        game.add_move(Move::new(Square::E7, Square::E6), -314);
         game.add_move(Move::new(Square::G1, Square::F3), 200);
 
         let mut buf = Vec::new();
@@ -615,8 +602,8 @@ mod tests {
     #[test]
     fn splat() {
         let mut game = Game::new(&Board::default());
-        game.add_move(Move::new(Square::E2, Square::E4), 3);
-        game.add_move(Move::new(Square::E7, Square::E5), -314);
+        game.add_move(Move::new(Square::E2, Square::E3), 3);
+        game.add_move(Move::new(Square::E7, Square::E6), -314);
         game.add_move(Move::new(Square::G1, Square::F3), 200);
 
         let mut boards = arrayvec::ArrayVec::<_, 32>::new();
@@ -633,10 +620,10 @@ mod tests {
         let mut check_board = Board::default();
         assert_eq!(boards[0].unpack().0.to_string(), check_board.to_string());
         assert_eq!(boards[0].unpack().1, 3);
-        assert!(check_board.make_move_simple(Move::new(Square::E2, Square::E4)));
+        assert!(check_board.make_move_simple(Move::new(Square::E2, Square::E3)));
         assert_eq!(boards[1].unpack().0.to_string(), check_board.to_string());
         assert_eq!(boards[1].unpack().1, -314);
-        assert!(check_board.make_move_simple(Move::new(Square::E7, Square::E5)));
+        assert!(check_board.make_move_simple(Move::new(Square::E7, Square::E6)));
         assert_eq!(boards[2].unpack().0.to_string(), check_board.to_string());
         assert_eq!(boards[2].unpack().1, 200);
     }

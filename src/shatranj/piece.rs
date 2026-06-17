@@ -48,10 +48,10 @@ impl Display for Colour {
 #[repr(u8)]
 pub enum PieceType {
     Pawn,
+    Alfil,
+    Ferz,
     Knight,
-    Bishop,
     Rook,
-    Queen,
     King,
 }
 
@@ -61,10 +61,10 @@ impl Display for PieceType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::Pawn => write!(f, "Pawn"),
+            Self::Alfil => write!(f, "Alfil"),
+            Self::Ferz => write!(f, "Ferz"),
             Self::Knight => write!(f, "Knight"),
-            Self::Bishop => write!(f, "Bishop"),
             Self::Rook => write!(f, "Rook"),
-            Self::Queen => write!(f, "Queen"),
             Self::King => write!(f, "King"),
         }
     }
@@ -75,8 +75,8 @@ impl Display for PieceType {
 #[repr(u8)]
 pub enum Piece {
     #[default]
-    WP, WN, WB, WR, WQ, WK,
-    BP, BN, BB, BR, BQ, BK,
+    WP, WA, WF, WN, WR, WK,
+    BP, BA, BF, BN, BR, BK,
 }
 
 const _PIECE_ASSERT: () = assert!(size_of::<Piece>() == size_of::<Option<Piece>>());
@@ -135,16 +135,12 @@ impl PieceType {
     }
 
     pub const fn legal_promo(self) -> bool {
-        // self == Self::QUEEN || self == Self::KNIGHT || self == Self::BISHOP || self == Self::ROOK
-        matches!(self, Self::Queen | Self::Knight | Self::Bishop | Self::Rook)
+        matches!(self, Self::Ferz)
     }
 
     pub const fn promo_char(self) -> Option<char> {
         match self {
-            Self::Queen => Some('q'),
-            Self::Knight => Some('n'),
-            Self::Bishop => Some('b'),
-            Self::Rook => Some('r'),
+            Self::Ferz => Some('q'),
             _ => None,
         }
     }
@@ -207,16 +203,16 @@ impl Piece {
     pub const fn char(self) -> char {
         match self {
             Self::WP => 'P',
+            Self::WA => 'B',
+            Self::WF => 'Q',
             Self::WN => 'N',
-            Self::WB => 'B',
             Self::WR => 'R',
-            Self::WQ => 'Q',
             Self::WK => 'K',
             Self::BP => 'p',
+            Self::BA => 'b',
+            Self::BF => 'q',
             Self::BN => 'n',
-            Self::BB => 'b',
             Self::BR => 'r',
-            Self::BQ => 'q',
             Self::BK => 'k',
         }
     }
@@ -224,16 +220,16 @@ impl Piece {
     pub const fn byte_char(self) -> u8 {
         match self {
             Self::WP => b'P',
+            Self::WA => b'B',
+            Self::WF => b'Q',
             Self::WN => b'N',
-            Self::WB => b'B',
             Self::WR => b'R',
-            Self::WQ => b'Q',
             Self::WK => b'K',
             Self::BP => b'p',
+            Self::BA => b'b',
+            Self::BF => b'q',
             Self::BN => b'n',
-            Self::BB => b'b',
             Self::BR => b'r',
-            Self::BQ => b'q',
             Self::BK => b'k',
         }
     }

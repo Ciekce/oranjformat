@@ -5,7 +5,7 @@ use std::{
     str::FromStr,
 };
 
-use crate::chess::{
+use crate::shatranj::{
     piece::{Colour, Piece},
     piecelayout::{PieceLayout, Threats},
     squareset::SquareSet,
@@ -431,9 +431,7 @@ pub struct ContHistIndex {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Undo {
-    pub castle_perm: CastlingRights,
-    pub ep_square: Option<Square>,
-    pub fifty_move_counter: u8,
+    pub seventy_move_counter: u8,
     pub threats: Threats,
     pub piece_layout: PieceLayout,
     pub piece_array: [Option<Piece>; 64],
@@ -452,9 +450,7 @@ pub struct Undo {
 impl Default for Undo {
     fn default() -> Self {
         Self {
-            castle_perm: CastlingRights::NONE,
-            ep_square: None,
-            fifty_move_counter: 0,
+            seventy_move_counter: 0,
             threats: Threats {
                 all: SquareSet::EMPTY,
                 checkers: SquareSet::EMPTY,
@@ -474,141 +470,6 @@ pub enum CheckState {
     None,
     Check,
     Checkmate,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct CastlingRights {
-    pub wk: Option<Square>,
-    pub wq: Option<Square>,
-    pub bk: Option<Square>,
-    pub bq: Option<Square>,
-}
-
-impl CastlingRights {
-    pub const NONE: Self = Self {
-        wk: None,
-        wq: None,
-        bk: None,
-        bq: None,
-    };
-
-    pub const fn hashkey_index(self) -> usize {
-        let mut index = 0;
-        if self.wk.is_some() {
-            index |= WKCA;
-        }
-        if self.wq.is_some() {
-            index |= WQCA;
-        }
-        if self.bk.is_some() {
-            index |= BKCA;
-        }
-        if self.bq.is_some() {
-            index |= BQCA;
-        }
-        index as usize
-    }
-
-    pub fn remove(&mut self, sq: Square) {
-        let sq = Some(sq);
-        if self.wk == sq {
-            self.wk = None;
-        } else if self.wq == sq {
-            self.wq = None;
-        } else if self.bk == sq {
-            self.bk = None;
-        } else if self.bq == sq {
-            self.bq = None;
-        }
-    }
-
-    pub fn kingside(self, side: Colour) -> Option<Square> {
-        if side == Colour::White {
-            self.wk
-        } else {
-            self.bk
-        }
-    }
-
-    #[allow(dead_code)]
-    pub fn kingside_mut(&mut self, side: Colour) -> &mut Option<Square> {
-        if side == Colour::White {
-            &mut self.wk
-        } else {
-            &mut self.bk
-        }
-    }
-
-    pub fn queenside(self, side: Colour) -> Option<Square> {
-        if side == Colour::White {
-            self.wq
-        } else {
-            self.bq
-        }
-    }
-
-    #[allow(dead_code)]
-    pub fn queenside_mut(&mut self, side: Colour) -> &mut Option<Square> {
-        if side == Colour::White {
-            &mut self.wq
-        } else {
-            &mut self.bq
-        }
-    }
-
-    pub const fn display(&self, chess_960: bool) -> CastlingRightsDisplay<'_> {
-        CastlingRightsDisplay {
-            rights: self,
-            chess_960,
-        }
-    }
-}
-
-pub struct CastlingRightsDisplay<'a> {
-    rights: &'a CastlingRights,
-    chess_960: bool,
-}
-
-impl Display for CastlingRightsDisplay<'_> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        const FILE_NAMES: [u8; 8] = *b"abcdefgh";
-        if self.chess_960 {
-            if let Some(right) = self.rights.wk {
-                write!(
-                    f,
-                    "{}",
-                    FILE_NAMES[right.file()].to_ascii_uppercase() as char
-                )?;
-            }
-            if let Some(right) = self.rights.wq {
-                write!(
-                    f,
-                    "{}",
-                    FILE_NAMES[right.file()].to_ascii_uppercase() as char
-                )?;
-            }
-            if let Some(right) = self.rights.bk {
-                write!(f, "{}", FILE_NAMES[right.file()] as char)?;
-            }
-            if let Some(right) = self.rights.bq {
-                write!(f, "{}", FILE_NAMES[right.file()] as char)?;
-            }
-        } else {
-            if self.rights.wk.is_some() {
-                write!(f, "K")?;
-            }
-            if self.rights.wq.is_some() {
-                write!(f, "Q")?;
-            }
-            if self.rights.bk.is_some() {
-                write!(f, "k")?;
-            }
-            if self.rights.bq.is_some() {
-                write!(f, "q")?;
-            }
-        }
-        Ok(())
-    }
 }
 
 #[cfg(test)]

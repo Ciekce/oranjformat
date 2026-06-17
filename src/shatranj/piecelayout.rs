@@ -1,7 +1,9 @@
 use std::fmt::Display;
 
-use crate::chess::{
-    board::movegen::{bishop_attacks, king_attacks, knight_attacks, pawn_attacks, rook_attacks},
+use crate::shatranj::{
+    board::movegen::{
+        alfil_attacks, ferz_attacks, king_attacks, knight_attacks, pawn_attacks, rook_attacks,
+    },
     piece::{Black, Col, Colour, Piece, PieceType, White},
     squareset::SquareSet,
     types::{File, Rank, Square},
@@ -62,20 +64,20 @@ impl PieceLayout {
         self.colours[C::COLOUR]
     }
 
-    pub fn orthos<C: Col>(&self) -> SquareSet {
-        (self.all_rooks() | self.all_queens()) & self.our_pieces::<C>()
-    }
-
-    pub fn diags<C: Col>(&self) -> SquareSet {
-        (self.all_bishops() | self.all_queens()) & self.our_pieces::<C>()
-    }
-
     pub fn empty(&self) -> SquareSet {
         !self.occupied()
     }
 
     pub fn occupied(&self) -> SquareSet {
         self.colours[Colour::White] | self.colours[Colour::Black]
+    }
+
+    pub fn alfils<C: Col>(&self) -> SquareSet {
+        self.all_alfils() & self.our_pieces::<C>()
+    }
+
+    pub fn ferzes<C: Col>(&self) -> SquareSet {
+        self.all_ferzes() & self.our_pieces::<C>()
     }
 
     pub fn knights<C: Col>(&self) -> SquareSet {
@@ -86,32 +88,24 @@ impl PieceLayout {
         self.all_rooks() & self.our_pieces::<C>()
     }
 
-    pub fn bishops<C: Col>(&self) -> SquareSet {
-        self.all_bishops() & self.our_pieces::<C>()
-    }
-
-    pub fn queens<C: Col>(&self) -> SquareSet {
-        self.all_queens() & self.our_pieces::<C>()
-    }
-
     pub fn all_pawns(&self) -> SquareSet {
         self.pieces[PieceType::Pawn]
+    }
+
+    pub fn all_alfils(&self) -> SquareSet {
+        self.pieces[PieceType::Alfil]
+    }
+
+    pub fn all_ferzes(&self) -> SquareSet {
+        self.pieces[PieceType::Ferz]
     }
 
     pub fn all_knights(&self) -> SquareSet {
         self.pieces[PieceType::Knight]
     }
 
-    pub fn all_bishops(&self) -> SquareSet {
-        self.pieces[PieceType::Bishop]
-    }
-
     pub fn all_rooks(&self) -> SquareSet {
         self.pieces[PieceType::Rook]
-    }
-
-    pub fn all_queens(&self) -> SquareSet {
-        self.pieces[PieceType::Queen]
     }
 
     pub fn all_kings(&self) -> SquareSet {
@@ -159,16 +153,17 @@ impl PieceLayout {
         let sq_bb = sq.as_set();
         let black_pawn_attackers = pawn_attacks::<White>(sq_bb) & self.pawns::<Black>();
         let white_pawn_attackers = pawn_attacks::<Black>(sq_bb) & self.pawns::<White>();
+        let alfil_attackers = alfil_attacks(sq) & self.all_alfils();
+        let ferz_attackers = ferz_attacks(sq) & self.all_ferzes();
         let knight_attackers = knight_attacks(sq) & (self.all_knights());
-        let diag_attackers =
-            bishop_attacks(sq, occupied) & (self.all_bishops() | self.all_queens());
-        let orth_attackers = rook_attacks(sq, occupied) & (self.all_rooks() | self.all_queens());
+        let rook_attackers = rook_attacks(sq, occupied) & self.all_rooks();
         let king_attackers = king_attacks(sq) & (self.all_kings());
         black_pawn_attackers
             | white_pawn_attackers
+            | alfil_attackers
+            | ferz_attackers
             | knight_attackers
-            | diag_attackers
-            | orth_attackers
+            | rook_attackers
             | king_attackers
     }
 
@@ -186,7 +181,9 @@ impl PieceLayout {
                 return Some(Piece::new(colour, piece));
             }
         }
-        panic!("Bit set in colour square-set for {colour:?} but not in piece square-sets! square is {sq}");
+        panic!(
+            "Bit set in colour square-set for {colour:?} but not in piece square-sets! square is {sq}"
+        );
     }
 
     fn any_bbs_overlapping(&self) -> bool {
@@ -237,53 +234,7 @@ impl PieceLayout {
     /// Returns true if the current position *would* be a draw by insufficient material,
     /// if there were no pawns on the board.
     pub fn is_material_draw(&self) -> bool {
-        if self.of_type(PieceType::Rook).is_empty() && self.of_type(PieceType::Queen).is_empty() {
-            if self.of_type(PieceType::Bishop).is_empty() {
-                if self.piece_bb(Piece::WN).count() < 3 && self.piece_bb(Piece::BN).count() < 3 {
-                    return true;
-                }
-            } else if (self.of_type(PieceType::Knight).is_empty()
-                && self
-                    .piece_bb(Piece::WB)
-                    .count()
-                    .abs_diff(self.piece_bb(Piece::BB).count())
-                    < 2)
-                || SquareSet::union(self.piece_bb(Piece::WB), self.piece_bb(Piece::WN)).count() == 1
-                    && SquareSet::union(self.piece_bb(Piece::BB), self.piece_bb(Piece::BN)).count()
-                        == 1
-            {
-                return true;
-            }
-        } else if self.of_type(PieceType::Queen).is_empty() {
-            if self.piece_bb(Piece::WR).count() == 1 && self.piece_bb(Piece::BR).count() == 1 {
-                if SquareSet::union(self.piece_bb(Piece::WN), self.piece_bb(Piece::WB)).count() < 2
-                    && SquareSet::union(self.piece_bb(Piece::BN), self.piece_bb(Piece::BB)).count()
-                        < 2
-                {
-                    return true;
-                }
-            } else if self.piece_bb(Piece::WR).count() == 1 && self.piece_bb(Piece::BR).is_empty() {
-                if SquareSet::union(self.piece_bb(Piece::WN), self.piece_bb(Piece::WB)).is_empty()
-                    && (SquareSet::union(self.piece_bb(Piece::BN), self.piece_bb(Piece::BB))
-                        .count()
-                        == 1
-                        || SquareSet::union(self.piece_bb(Piece::BN), self.piece_bb(Piece::BB))
-                            .count()
-                            == 2)
-                {
-                    return true;
-                }
-            } else if self.piece_bb(Piece::WR).is_empty()
-                && self.piece_bb(Piece::BR).count() == 1
-                && SquareSet::union(self.piece_bb(Piece::BN), self.piece_bb(Piece::BB)).is_empty()
-                && (SquareSet::union(self.piece_bb(Piece::WN), self.piece_bb(Piece::WB)).count()
-                    == 1
-                    || SquareSet::union(self.piece_bb(Piece::WN), self.piece_bb(Piece::WB)).count()
-                        == 2)
-            {
-                return true;
-            }
-        }
+        //TODO
         false
     }
 }

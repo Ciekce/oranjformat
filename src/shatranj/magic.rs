@@ -1,5 +1,5 @@
 use crate::{
-    chess::{squareset::SquareSet, types::Square},
+    shatranj::{squareset::SquareSet, types::Square},
     rng::XorShiftState,
 };
 
@@ -15,22 +15,6 @@ macro_rules! cfor {
         }
     }
 }
-
-/// The number of relevant bits in the bitboard representation of the attack squareset.
-/// For example, on a1, a bishop has 7 squares it can move to
-/// along the long diagonal - but the contents of h8 are irrelevant to movegen,
-/// so the number of relevant bits on the board is 6.
-#[rustfmt::skip]
-pub static BISHOP_REL_BITS: [i32; 64] = [
-    6, 5, 5, 5, 5, 5, 5, 6,
-    5, 5, 5, 5, 5, 5, 5, 5,
-    5, 5, 7, 7, 7, 7, 5, 5,
-    5, 5, 7, 9, 9, 7, 5, 5,
-    5, 5, 7, 9, 9, 7, 5, 5,
-    5, 5, 7, 7, 7, 7, 5, 5,
-    5, 5, 5, 5, 5, 5, 5, 5,
-    6, 5, 5, 5, 5, 5, 5, 6,
-];
 
 /// The number of relevant bits in the bitboard representation of the attack squareset.
 /// For example, on a1, a rook has 14 squares it can move to
@@ -65,32 +49,6 @@ const fn set_occupancy(index: usize, bits_in_mask: i32, mut attack_mask: SquareS
     occupancy
 }
 
-const fn mask_bishop_attacks(sq: Square) -> SquareSet {
-    let mut attacks = 0;
-
-    // file and rank
-    let (mut f, mut r);
-
-    // target files and ranks
-    let tr = sq.rank() as i32;
-    let tf = sq.file() as i32;
-
-    cfor!((r, f) = (tr + 1, tf + 1); r <= 6 && f <= 6; (r, f) = (r + 1, f + 1); {
-        attacks |= 1 << (r * 8 + f);
-    });
-    cfor!((r, f) = (tr + 1, tf - 1); r <= 6 && f >= 1; (r, f) = (r + 1, f - 1); {
-        attacks |= 1 << (r * 8 + f);
-    });
-    cfor!((r, f) = (tr - 1, tf + 1); r >= 1 && f <= 6; (r, f) = (r - 1, f + 1); {
-        attacks |= 1 << (r * 8 + f);
-    });
-    cfor!((r, f) = (tr - 1, tf - 1); r >= 1 && f >= 1; (r, f) = (r - 1, f - 1); {
-        attacks |= 1 << (r * 8 + f);
-    });
-
-    SquareSet::from_inner(attacks)
-}
-
 const fn mask_rook_attacks(sq: Square) -> SquareSet {
     let mut attacks = 0;
 
@@ -112,51 +70,6 @@ const fn mask_rook_attacks(sq: Square) -> SquareSet {
     });
     cfor!(f = tf - 1; f >= 1; f -= 1; {
         attacks |= 1 << (tr * 8 + f);
-    });
-
-    SquareSet::from_inner(attacks)
-}
-
-const fn bishop_attacks_on_the_fly(square: Square, block: SquareSet) -> SquareSet {
-    let mut attacks = 0;
-
-    // so sue me
-    let block = block.inner();
-
-    // file and rank
-    let (mut f, mut r);
-
-    // target files and ranks
-    let tr = square.rank() as i32;
-    let tf = square.file() as i32;
-
-    cfor!((r, f) = (tr + 1, tf + 1); r <= 7 && f <= 7; (r, f) = (r + 1, f + 1); {
-        let sq_bb = 1 << (r * 8 + f);
-        attacks |= sq_bb;
-        if block & sq_bb != 0 {
-            break;
-        }
-    });
-    cfor!((r, f) = (tr + 1, tf - 1); r <= 7 && f >= 0; (r, f) = (r + 1, f - 1); {
-        let sq_bb = 1 << (r * 8 + f);
-        attacks |= sq_bb;
-        if block & sq_bb != 0 {
-            break;
-        }
-    });
-    cfor!((r, f) = (tr - 1, tf + 1); r >= 0 && f <= 7; (r, f) = (r - 1, f + 1); {
-        let sq_bb = 1 << (r * 8 + f);
-        attacks |= sq_bb;
-        if block & sq_bb != 0 {
-            break;
-        }
-    });
-    cfor!((r, f) = (tr - 1, tf - 1); r >= 0 && f >= 0; (r, f) = (r - 1, f - 1); {
-        let sq_bb = 1 << (r * 8 + f);
-        attacks |= sq_bb;
-        if block & sq_bb != 0 {
-            break;
-        }
     });
 
     SquareSet::from_inner(attacks)
@@ -212,7 +125,7 @@ const fn rook_attacks_on_the_fly(square: Square, block: SquareSet) -> SquareSet 
 |                :3                    |
 \**************************************/
 
-fn find_magic(square: Square, relevant_bits: i32, is_bishop: bool) -> u64 {
+fn find_magic(square: Square, relevant_bits: i32) -> u64 {
     // occupancies array
     let mut occupancies = vec![SquareSet::EMPTY; 4096];
 
@@ -223,11 +136,7 @@ fn find_magic(square: Square, relevant_bits: i32, is_bishop: bool) -> u64 {
     let mut used_indices = vec![SquareSet::EMPTY; 4096];
 
     // mask piece attack
-    let mask_attack = if is_bishop {
-        mask_bishop_attacks(square)
-    } else {
-        mask_rook_attacks(square)
-    };
+    let mask_attack = mask_rook_attacks(square);
 
     // occupancy variations
     let occupancy_variations = 1 << relevant_bits;
@@ -238,11 +147,7 @@ fn find_magic(square: Square, relevant_bits: i32, is_bishop: bool) -> u64 {
         occupancies[count] = set_occupancy(count, relevant_bits, mask_attack);
 
         // init attacks
-        attacks[count] = if is_bishop {
-            bishop_attacks_on_the_fly(square, occupancies[count])
-        } else {
-            rook_attacks_on_the_fly(square, occupancies[count])
-        };
+        attacks[count] = rook_attacks_on_the_fly(square, occupancies[count]);
     });
 
     let mut rng = XorShiftState::new();
@@ -294,26 +199,10 @@ fn find_magic(square: Square, relevant_bits: i32, is_bishop: bool) -> u64 {
     clippy::cast_possible_wrap
 )]
 pub fn init_magics() {
-    println!("Generating bishop magics...");
-    println!("static BISHOP_MAGICS: [u64; 64] = [");
-    for (square, &relbits) in Square::all().zip(BISHOP_REL_BITS.iter()) {
-        let magic = find_magic(square, relbits, true);
-        let magic_str = format!("{magic:016X}");
-        // split into blocks of four
-        let magic_str = magic_str.chars().collect::<Vec<char>>();
-        let magic_str = magic_str
-            .chunks(4)
-            .map(|chunk| chunk.iter().collect::<String>())
-            .collect::<Vec<String>>()
-            .join("_");
-        println!("    0x{magic_str},");
-    }
-    println!("];");
-
     println!("Generating rook magics...");
     println!("static ROOK_MAGICS: [u64; 64] = [");
     for (square, &relbits) in Square::all().zip(ROOK_REL_BITS.iter()) {
-        let magic = find_magic(square, relbits, false);
+        let magic = find_magic(square, relbits);
         let magic_str = format!("{magic:016X}");
         // split into blocks of four
         let magic_str = magic_str.chars().collect::<Vec<char>>();
@@ -338,81 +227,11 @@ macro_rules! init_masks_with {
     }};
 }
 
-pub static BISHOP_MASKS: [SquareSet; 64] = init_masks_with!(mask_bishop_attacks);
 pub static ROOK_MASKS: [SquareSet; 64] = init_masks_with!(mask_rook_attacks);
 
-pub static BISHOP_ATTACKS: [[SquareSet; 512]; 64] =
-    unsafe { std::mem::transmute(*include_bytes!("../../embeds/diagonal_attacks.bin")) };
 #[allow(clippy::large_stack_arrays)]
 pub static ROOK_ATTACKS: [[SquareSet; 4096]; 64] =
     unsafe { std::mem::transmute(*include_bytes!("../../embeds/orthogonal_attacks.bin")) };
-
-pub static BISHOP_MAGICS: [u64; 64] = [
-    0x0231_100A_1344_0020,
-    0x0020_0404_0844_4882,
-    0x0822_0801_0420_A100,
-    0x0008_0841_0000_0000,
-    0x0301_1040_0208_0010,
-    0x1200_8220_2000_8020,
-    0x8A04_0242_4220_2110,
-    0x0800_1104_1002_8804,
-    0x1000_2024_5022_2840,
-    0x0000_0208_1144_0080,
-    0x4098_1000_A200_4810,
-    0x4080_820A_0208_0018,
-    0x0211_0111_4010_20B0,
-    0x9100_0849_1010_0000,
-    0x0000_0088_8490_4000,
-    0x1906_810C_0104_4210,
-    0x0040_1020_0501_3200,
-    0x0450_0044_0400_8C11,
-    0xA648_0010_0034_4010,
-    0x42A0_200A_0200_4400,
-    0x0012_0064_1202_0109,
-    0x0001_0000_20A0_1032,
-    0x0001_0032_0802_0200,
-    0x0841_2100_8088_1821,
-    0x0802_1084_2020_0202,
-    0x0413_10B1_20C2_2600,
-    0x0000_4100_1001_0201,
-    0x0852_0800_6404_4008,
-    0x0001_0100_4010_4000,
-    0x8008_0021_0A00_8400,
-    0x0028_0888_0A02_2120,
-    0x5000_4100_0041_0808,
-    0x0910_0860_4008_8300,
-    0x0001_0121_1008_8800,
-    0x0000_1088_0010_0053,
-    0x5800_0200_8418_0080,
-    0x0340_0100_1001_0040,
-    0x0008_1001_0100_2080,
-    0x0802_4407_0020_4800,
-    0x8008_1200_8040_3080,
-    0x0120_8290_1040_4008,
-    0x0904_0218_0200_8500,
-    0x1102_0200_2404_0210,
-    0x0200_12A0_5100_4808,
-    0x9100_200A_0C00_0080,
-    0x0201_6022_9180_0100,
-    0x000A_10E1_0100_0600,
-    0x0004_0084_8A10_0100,
-    0x8A04_0242_4220_2110,
-    0x0000_4048_0868_8125,
-    0x4400_0200_4412_0002,
-    0xA101_0028_2088_0000,
-    0x1000_4010_020A_2004,
-    0x0044_0820_4800_8000,
-    0x3008_8801_4812_0000,
-    0x0020_0404_0844_4882,
-    0x0800_1104_1002_8804,
-    0x1906_810C_0104_4210,
-    0x24A2_1020_8400_8801,
-    0x8001_4011_0020_8808,
-    0x2088_0040_2020_4120,
-    0x2041_0008_1110_1222,
-    0x1000_2024_5022_2840,
-    0x0231_100A_1344_0020,
-];
 
 pub static ROOK_MAGICS: [u64; 64] = [
     0x2080_0010_2080_4000,

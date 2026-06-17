@@ -1,5 +1,5 @@
 pub mod board;
-pub mod chessmove;
+pub mod shatranjmove;
 mod magic;
 pub mod piece;
 pub mod piecelayout;

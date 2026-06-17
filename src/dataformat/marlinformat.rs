@@ -1,18 +1,15 @@
-use crate::chess::{
+use crate::shatranj::{
     board::{Board, GameOutcome},
     piece::{Colour, Piece, PieceType},
     squareset::SquareSet,
-    types::{Rank, Square},
 };
-
-const UNMOVED_ROOK: u8 = 6; // one higher than the max piecetype enum value
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 #[repr(C)]
 pub struct PackedBoard {
     pub(crate) occupancy: util::U64Le,
     pub(crate) pieces: util::U4Array32,
-    pub(crate) stm_ep_square: u8,
+    pub(crate) stm: u8,
     pub(crate) halfmove_clock: u8,
     pub(crate) fullmove_number: util::U16Le,
     pub(crate) eval: util::I16Le,
@@ -38,25 +35,10 @@ impl PackedBoard {
             let piece_type = piece.piece_type();
             let colour = piece.colour();
 
-            let mut piece_code = piece_type.inner();
-            let rank1 = if colour == Colour::White {
-                Rank::One
-            } else {
-                Rank::Eight
-            };
-            if piece_type == PieceType::Rook && sq.rank() == rank1 {
-                let castling_sq = if board.king_sq(colour) < sq {
-                    board.castling_rights().kingside(colour)
-                } else {
-                    board.castling_rights().queenside(colour)
-                };
-                let castling_file = castling_sq.map(Square::file);
-                if Some(sq.file()) == castling_file {
-                    piece_code = UNMOVED_ROOK;
-                }
-            }
+            let piece_code = piece_type.inner();
 
             debug_assert_eq!(piece_code & 0b0111, piece_code);
+            debug_assert_ne!(piece_code, 0b0110, "we are not using the 0b0110 piece code");
             debug_assert_ne!(piece_code, 0b0111, "we are not using the 0b0111 piece code");
             pieces.set(i, piece_code | (colour.inner() << 3));
         }
@@ -64,8 +46,8 @@ impl PackedBoard {
         Self {
             occupancy: util::U64Le::new(occupancy.inner()),
             pieces,
-            stm_ep_square: (board.turn().inner() << 7) | board.ep_sq().map_or(64, Square::inner),
-            halfmove_clock: board.fifty_move_counter(),
+            stm: board.turn().inner() << 7,
+            halfmove_clock: board.seventy_move_counter(),
             fullmove_number: util::U16Le::new(board.full_move_number().try_into().unwrap()),
             wdl,
             eval: util::I16Le::new(eval),
@@ -83,25 +65,14 @@ impl PackedBoard {
         {
             let colour = Colour::new(self.pieces.get(i) >> 3 != 0);
             let piece_code = self.pieces.get(i) & 0b0111;
-            let piece_type = match piece_code {
-                UNMOVED_ROOK => {
-                    if seen_king[colour] {
-                        *builder.castling_rights_mut().kingside_mut(colour) = Some(sq);
-                    } else {
-                        *builder.castling_rights_mut().queenside_mut(colour) = Some(sq);
-                    }
-                    PieceType::Rook
-                }
-                _ => PieceType::new(piece_code).unwrap(),
-            };
+            let piece_type = PieceType::new(piece_code).unwrap();
             if piece_type == PieceType::King {
                 seen_king[colour] = true;
             }
             builder.add_piece(sq, Piece::new(colour, piece_type));
         }
 
-        *builder.ep_sq_mut() = Square::new(self.stm_ep_square & 0b0111_1111);
-        *builder.turn_mut() = Colour::new(self.stm_ep_square >> 7 != 0);
+        *builder.turn_mut() = Colour::new(self.stm >> 7 != 0);
         *builder.halfmove_clock_mut() = self.halfmove_clock;
         builder.set_fullmove_clock(self.fullmove_number.get());
 
