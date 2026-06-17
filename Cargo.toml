@@ -1,9 +1,9 @@
 [package]
-name = "viriformat"
-version = "3.0.0"
+name = "oranjformat"
+version = "1.0.0"
 edition = "2024"
 license = "MIT"
-description = "A library for the data-representation used by the viridithas chess engine."
+description = "A library for the data-representation used by the oranj shatranj engine."
 
 [dependencies]
 anyhow = "1.0"
