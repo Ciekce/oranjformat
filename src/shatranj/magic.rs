@@ -1,6 +1,6 @@
 use crate::{
-    shatranj::{squareset::SquareSet, types::Square},
     rng::XorShiftState,
+    shatranj::{squareset::SquareSet, types::Square},
 };
 
 macro_rules! cfor {

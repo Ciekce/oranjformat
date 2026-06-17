@@ -4,11 +4,8 @@
 // the Board::make_move() function.
 
 use crate::{
-    shatranj::{
-        piece::Piece,
-        types::Square,
-    },
     lookups::{PIECE_KEYS, SIDE_KEY},
+    shatranj::{piece::Piece, types::Square},
 };
 
 pub fn hash_piece(key: &mut u64, piece: Piece, sq: Square) {

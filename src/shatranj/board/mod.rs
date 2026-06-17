@@ -1492,10 +1492,9 @@ mod tests {
         use super::Board;
         use crate::shatranj::shatranjmove::Move;
         use crate::shatranj::types::Square;
-        let mut board = Board::from_fen(
-            "r1bqkb1r/ppp2ppp/2n5/3np1N1/2B5/8/PPPP1PPP/RNBQK2R w - - 0 6"
-        )
-        .unwrap();
+        let mut board =
+            Board::from_fen("r1bqkb1r/ppp2ppp/2n5/3np1N1/2B5/8/PPPP1PPP/RNBQK2R w - - 0 6")
+                .unwrap();
         // Nxf7!!
         let mv = Move::new(Square::G5, Square::F7);
         let key = board.key_after(mv);

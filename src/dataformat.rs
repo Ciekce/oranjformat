@@ -5,9 +5,9 @@ use crate::shatranj::{
     shatranjmove::Move,
 };
 
-use self::marlinformat::{util::I16Le, PackedBoard};
+use self::marlinformat::{PackedBoard, util::I16Le};
 use anyhow::Context;
-use rand::{rngs::ThreadRng, Rng};
+use rand::{Rng, rngs::ThreadRng};
 use serde::{Deserialize, Serialize};
 
 mod marlinformat;
@@ -511,7 +511,7 @@ impl Game {
 #[allow(clippy::unwrap_used)]
 #[cfg(test)]
 mod tests {
-    use crate::shatranj::{piece::Colour};
+    use crate::shatranj::piece::Colour;
 
     use super::*;
 
